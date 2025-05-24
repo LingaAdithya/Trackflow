@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { supabase } from '../supabaseClient';
 import jsPDF from 'jspdf';
 import { ToastContainer, toast } from 'react-toastify';
@@ -74,7 +74,7 @@ export default function OrderList() {
 
       if (newStatus === 'Dispatched' && !order.email_sent) {
         try {
-          const response = await fetch('http://localhost:5000/send-receipt', {
+          const response = await fetch(`${process.env.REACT_APP_BACKEND_URL}/send-receipt`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -82,7 +82,8 @@ export default function OrderList() {
               email: leads.email,
               product: leads.product,
               price: leads.price,
-              quantity: leads.quantity
+              quantity: leads.quantity,
+              tracking_number: order.tracking_number
             })
           });
 

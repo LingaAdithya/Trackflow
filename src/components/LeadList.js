@@ -1,6 +1,8 @@
 import { useEffect, useState, useCallback } from 'react';
 import { supabase } from '../supabaseClient';
 import { useNavigate } from 'react-router-dom';
+import { toast, ToastContainer } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
 
 export default function LeadList() {
   const navigate = useNavigate();
@@ -21,7 +23,7 @@ export default function LeadList() {
     contact_number: '',
     email: '',
     product: '',
-    price: '',
+    amount: '',
     quantity: '',
     stage: 'New',
   });
@@ -56,9 +58,10 @@ export default function LeadList() {
   const handleStageChange = (leadId, newStage) => {
     setLeads((prevLeads) =>
       prevLeads.map((lead) =>
-        lead.id === leadId ? { ...lead, newStage } : lead
+        lead.id === leadId ? { ...lead, stage: newStage } : lead
       )
     );
+    setEditingLeadData((prev) => ({ ...prev, stage: newStage }));
   };
 
   const handleStageConfirm = async (leadId, confirmedStage) => {
@@ -67,27 +70,34 @@ export default function LeadList() {
 
     const { error: stageError } = await supabase
       .from('leads')
-      .update({ stage: confirmedStage })
+      .update({ stage: confirmedStage || originalLead.stage })
       .eq('id', leadId);
 
     if (stageError) {
       console.error('Error updating stage:', stageError);
+      toast.error(`Failed to update stage: ${stageError.message}`);
     } else {
       if (wasWon && confirmedStage !== 'Won') {
         const { error: deleteError } = await supabase
           .from('orders')
           .delete()
           .eq('lead_id', leadId);
-        if (deleteError) console.error('Error withdrawing order:', deleteError);
+        if (deleteError) {
+          console.error('Error withdrawing order:', deleteError);
+          toast.error(`Failed to withdraw order: ${deleteError.message}`);
+        }
       }
 
       setLeads((prevLeads) =>
         prevLeads.map((lead) =>
           lead.id === leadId
-            ? { ...lead, stage: confirmedStage, newStage: undefined }
+            ? { ...lead, stage: confirmedStage || lead.stage }
             : lead
         )
       );
+
+      toast.success('Stage updated successfully');
+      cancelEditing();
 
       if (confirmedStage === 'Won') navigate('/create-order');
     }
@@ -95,11 +105,17 @@ export default function LeadList() {
 
   const handleAddLead = async (e) => {
     e.preventDefault();
-    const leadToInsert = { ...newLead, stage: 'New' };
+    const leadToInsert = {
+      ...newLead,
+      stage: 'New',
+      amount: parseFloat(newLead.amount) || 0,
+      quantity: parseInt(newLead.quantity, 10) || 0,
+    };
 
     const { data, error } = await supabase.from('leads').insert([leadToInsert]).select();
     if (error) {
       console.error('Error adding lead:', error);
+      toast.error(`Failed to add lead: ${error.message}`);
     } else {
       setLeads((prev) => [data[0], ...prev]);
       setShowForm(false);
@@ -109,31 +125,47 @@ export default function LeadList() {
         contact_number: '',
         email: '',
         product: '',
-        price: '',
+        amount: '',
         quantity: '',
         stage: 'New',
       });
+      toast.success('Lead added successfully');
     }
   };
 
   const handleFollowupSave = async (leadId) => {
     const { error } = await supabase.from('leads').update({ followup_date: followupDate }).eq('id', leadId);
-    if (error) console.error('Error updating followup date:', error);
-    else {
+    if (error) {
+      console.error('Error updating followup date:', error);
+      toast.error(`Failed to update follow-up date: ${error.message}`);
+    } else {
       setEditingFollowupId(null);
       setFollowupDate('');
       fetchLeads();
+      toast.success('Follow-up date updated');
     }
   };
 
   const saveEditedLead = async (leadId) => {
-    const { error } = await supabase.from('leads').update(editingLeadData).eq('id', leadId);
+    const updatedLeadData = {
+      name: editingLeadData.name,
+      company: editingLeadData.company,
+      contact_number: editingLeadData.contact_number,
+      email: editingLeadData.email,
+      product: editingLeadData.product,
+      quantity: parseInt(editingLeadData.quantity, 10) || 0,
+      stage: editingLeadData.stage,
+      followup_date: editingLeadData.followup_date || null,
+    };
+
+    const { error } = await supabase.from('leads').update(updatedLeadData).eq('id', leadId);
     if (error) {
       console.error('Error updating lead:', error);
+      toast.error(`Failed to update lead: ${error.message}`);
     } else {
-      setEditingLeadId(null);
-      setEditingLeadData({});
       fetchLeads();
+      toast.success('Changes saved successfully');
+      cancelEditing();
     }
   };
 
@@ -142,6 +174,7 @@ export default function LeadList() {
     setEditingLeadData({});
     setEditingFollowupId(null);
     setFollowupDate('');
+    fetchLeads();
   };
 
   const filteredLeads = leads.filter((lead) => {
@@ -154,6 +187,7 @@ export default function LeadList() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-100 to-blue-50 p-4 sm:p-6 font-sans">
+      <ToastContainer position="top-right" autoClose={3000} hideProgressBar closeOnClick />
       <div className="bg-white rounded-2xl p-4 sm:p-8 shadow-lg max-w-5xl mx-auto">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
           <h2 className="text-xl sm:text-2xl font-bold text-gray-800 flex items-center">
@@ -221,9 +255,9 @@ export default function LeadList() {
               type="number"
               step="0.01"
               className="p-3 border border-gray-300 rounded-lg w-full focus:outline-none focus:ring-2 focus:ring-blue-500"
-              placeholder="Price"
-              value={newLead.price}
-              onChange={(e) => setNewLead({ ...newLead, price: e.target.value })}
+              placeholder="Amount"
+              value={newLead.amount}
+              onChange={(e) => setNewLead({ ...newLead, amount: e.target.value })}
               required
             />
             <button

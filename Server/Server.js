@@ -1,7 +1,7 @@
 const express = require('express');
 const nodemailer = require('nodemailer');
 const cors = require('cors');
-require('dotenv').config(); // Load environment variables
+require('dotenv').config(); 
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -53,3 +53,7 @@ app.post('/send-receipt', async (req, res) => {
 });
 
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+
+
+
+
