@@ -14,17 +14,23 @@ export default function CreateOrderPage() {
   const navigate = useNavigate();
 
   const fetchEligibleLeads = async () => {
-    const { data: orderedLeads } = await supabase.from('orders').select('lead_id');
-    const usedLeadIds = orderedLeads?.map((o) => o.lead_id) ?? [];
+  const { data: orderedLeads } = await supabase.from('orders').select('lead_id');
+  const usedLeadIds = orderedLeads?.map((o) => Number(o.lead_id)).filter(Boolean) ?? [];
 
-    const { data } = await supabase
-      .from('leads')
-      .select('id, name')
-      .eq('stage', 'Won')
-      .not('id', 'in', `(${usedLeadIds.join(',') || 0})`);
+  const { data, error } = await supabase
+    .from('leads')
+    .select('id, name')
+    .eq('stage', 'Won')
 
-    setEligibleLeads(data || []);
-  };
+  if (error) {
+    console.error("Error fetching eligible leads:", error.message);
+  } else {
+    console.log("Eligible leads:", data);
+  }
+
+  setEligibleLeads(data || []);
+};
+
 
   useEffect(() => {
     fetchEligibleLeads();
@@ -83,6 +89,10 @@ export default function CreateOrderPage() {
           >
             <i className="fas fa-save mr-2"></i> Save Order
           </button>
+          <p className="text-sm text-gray-500 mt-2">
+  Eligible leads: {eligibleLeads.length}
+</p>
+
         </form>
       </div>
     </div>

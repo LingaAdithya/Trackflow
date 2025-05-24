@@ -38,17 +38,36 @@ export default function OrderList() {
   };
 
   const fetchEligibleLeads = async () => {
-    const { data: orderedLeads } = await supabase.from('orders').select('lead_id');
-    const usedLeadIds = orderedLeads?.map((o) => o.lead_id) ?? [];
+  try {
+    const { data: orderedLeads, error: ordersError } = await supabase
+      .from('orders')
+      .select('lead_id');
 
-    const { data, error } = await supabase
+    if (ordersError) {
+      console.error("Error fetching ordered leads:", ordersError);
+      return;
+    }
+
+    const usedLeadIds = orderedLeads?.map((o) => o.lead_id).filter(Boolean) ?? [];
+
+    console.log("Used lead IDs:", usedLeadIds);
+
+    const { data: leadsData, error: leadsError } = await supabase
       .from('leads')
       .select('id, name')
       .eq('stage', 'Won')
-      .not('id', 'in', `(${usedLeadIds.join(',') || 0})`);
 
-    if (!error) setEligibleLeads(data);
-  };
+    if (leadsError) {
+      console.error("Error fetching eligible leads:", leadsError);
+    } else {
+      console.log("Fetched eligible leads:", leadsData);
+      setEligibleLeads(leadsData);
+    }
+  } catch (err) {
+    console.error("Unexpected error fetching eligible leads:", err);
+  }
+};
+
 
   useEffect(() => {
     fetchOrders();
