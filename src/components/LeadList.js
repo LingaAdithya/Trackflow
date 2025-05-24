@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { supabase } from '../supabaseClient';
 import { useNavigate } from 'react-router-dom';
 
@@ -8,29 +8,49 @@ export default function LeadList() {
   const [filterStage, setFilterStage] = useState('All');
   const [searchTerm, setSearchTerm] = useState('');
   const [showForm, setShowForm] = useState(false);
-  const [editingFollowup, setEditingFollowup] = useState(null);
+  const [editingLeadId, setEditingLeadId] = useState(null);
+  const [editingLeadData, setEditingLeadData] = useState({});
+  const [editingFollowupId, setEditingFollowupId] = useState(null);
   const [followupDate, setFollowupDate] = useState('');
+  const [sortBy, setSortBy] = useState('created_at');
+  const [sortOrder, setSortOrder] = useState('desc');
+
   const [newLead, setNewLead] = useState({
     name: '',
     company: '',
     contact_number: '',
     email: '',
-    stage: 'New',
     product: '',
-    quantity: '',
     price: '',
+    quantity: '',
+    stage: 'New',
   });
 
   const stageOptions = ['New', 'Contacted', 'Qualified', 'Proposal Sent', 'Won', 'Lost'];
 
-  useEffect(() => {
-    fetchLeads();
-  }, []);
-
-  const fetchLeads = async () => {
-    const { data, error } = await supabase.from('leads').select('*').order('created_at', { ascending: false });
+  const fetchLeads = useCallback(async () => {
+    let query = supabase.from('leads').select('*');
+    if (sortBy === 'name' || sortBy === 'followup_date') {
+      query = query.order(sortBy, { ascending: sortOrder === 'asc' });
+    } else {
+      query = query.order('created_at', { ascending: false });
+    }
+    const { data, error } = await query;
     if (error) console.error('Error fetching leads:', error);
     else setLeads(data);
+  }, [sortBy, sortOrder]);
+
+  useEffect(() => {
+    fetchLeads();
+  }, [fetchLeads]);
+
+  const handleSortChange = (newSortBy) => {
+    if (sortBy === newSortBy) {
+      setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortBy(newSortBy);
+      setSortOrder('asc');
+    }
   };
 
   const handleStageChange = (leadId, newStage) => {
@@ -42,10 +62,25 @@ export default function LeadList() {
   };
 
   const handleStageConfirm = async (leadId, confirmedStage) => {
-    const { error } = await supabase.from('leads').update({ stage: confirmedStage }).eq('id', leadId);
-    if (error) {
-      console.error('Error updating stage:', error);
+    const originalLead = leads.find((lead) => lead.id === leadId);
+    const wasWon = originalLead.stage === 'Won';
+
+    const { error: stageError } = await supabase
+      .from('leads')
+      .update({ stage: confirmedStage })
+      .eq('id', leadId);
+
+    if (stageError) {
+      console.error('Error updating stage:', stageError);
     } else {
+      if (wasWon && confirmedStage !== 'Won') {
+        const { error: deleteError } = await supabase
+          .from('orders')
+          .delete()
+          .eq('lead_id', leadId);
+        if (deleteError) console.error('Error withdrawing order:', deleteError);
+      }
+
       setLeads((prevLeads) =>
         prevLeads.map((lead) =>
           lead.id === leadId
@@ -53,24 +88,16 @@ export default function LeadList() {
             : lead
         )
       );
-      if (confirmedStage === 'Won') {
-        navigate('/create-order'); 
-      }
+
+      if (confirmedStage === 'Won') navigate('/create-order');
     }
   };
 
   const handleAddLead = async (e) => {
     e.preventDefault();
-
-    const leadToInsert = {
-      ...newLead,
-      stage: 'New',
-      price: parseFloat(newLead.price) || 0,
-      quantity: parseInt(newLead.quantity) || 0,
-    };
+    const leadToInsert = { ...newLead, stage: 'New' };
 
     const { data, error } = await supabase.from('leads').insert([leadToInsert]).select();
-
     if (error) {
       console.error('Error adding lead:', error);
     } else {
@@ -82,8 +109,8 @@ export default function LeadList() {
         contact_number: '',
         email: '',
         product: '',
-        quantity: '',
         price: '',
+        quantity: '',
         stage: 'New',
       });
     }
@@ -93,10 +120,28 @@ export default function LeadList() {
     const { error } = await supabase.from('leads').update({ followup_date: followupDate }).eq('id', leadId);
     if (error) console.error('Error updating followup date:', error);
     else {
-      setEditingFollowup(null);
+      setEditingFollowupId(null);
       setFollowupDate('');
       fetchLeads();
     }
+  };
+
+  const saveEditedLead = async (leadId) => {
+    const { error } = await supabase.from('leads').update(editingLeadData).eq('id', leadId);
+    if (error) {
+      console.error('Error updating lead:', error);
+    } else {
+      setEditingLeadId(null);
+      setEditingLeadData({});
+      fetchLeads();
+    }
+  };
+
+  const cancelEditing = () => {
+    setEditingLeadId(null);
+    setEditingLeadData({});
+    setEditingFollowupId(null);
+    setFollowupDate('');
   };
 
   const filteredLeads = leads.filter((lead) => {
@@ -108,14 +153,14 @@ export default function LeadList() {
   });
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-100 to-blue-50 p-6 font-sans">
-      <div className="bg-white rounded-2xl p-8 shadow-lg max-w-7xl mx-auto">
-        <div className="flex justify-between items-center mb-6">
-          <h2 className="text-2xl font-bold text-gray-800 flex items-center">
+    <div className="min-h-screen bg-gradient-to-br from-gray-100 to-blue-50 p-4 sm:p-6 font-sans">
+      <div className="bg-white rounded-2xl p-4 sm:p-8 shadow-lg max-w-5xl mx-auto">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
+          <h2 className="text-xl sm:text-2xl font-bold text-gray-800 flex items-center">
             <i className="fas fa-users mr-2 text-blue-500"></i> Lead Management
           </h2>
           <button
-            className="flex items-center px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition duration-200"
+            className="flex items-center px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition duration-200 w-full sm:w-auto"
             onClick={() => setShowForm((prev) => !prev)}
           >
             <i className="fas fa-plus mr-2"></i>
@@ -126,74 +171,77 @@ export default function LeadList() {
         {showForm && (
           <form
             onSubmit={handleAddLead}
-            className="bg-gray-100 p-6 rounded-xl mb-6 flex flex-wrap gap-4"
+            className="bg-gray-100 p-4 sm:p-6 rounded-xl mb-6 grid grid-cols-1 sm:grid-cols-2 gap-4"
           >
             <input
-              className="flex-1 min-w-[200px] p-3 border border-gray-300 rounded-lg"
+              className="p-3 border border-gray-300 rounded-lg w-full focus:outline-none focus:ring-2 focus:ring-blue-500"
               placeholder="Name"
               value={newLead.name}
               onChange={(e) => setNewLead({ ...newLead, name: e.target.value })}
               required
             />
             <input
-              className="flex-1 min-w-[200px] p-3 border border-gray-300 rounded-lg"
+              className="p-3 border border-gray-300 rounded-lg w-full focus:outline-none focus:ring-2 focus:ring-blue-500"
               placeholder="Company"
               value={newLead.company}
               onChange={(e) => setNewLead({ ...newLead, company: e.target.value })}
               required
             />
             <input
-              className="flex-1 min-w-[200px] p-3 border border-gray-300 rounded-lg"
+              className="p-3 border border-gray-300 rounded-lg w-full focus:outline-none focus:ring-2 focus:ring-blue-500"
               placeholder="Contact Number"
               value={newLead.contact_number}
               onChange={(e) => setNewLead({ ...newLead, contact_number: e.target.value })}
               required
             />
             <input
-              className="flex-1 min-w-[200px] p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              placeholder="Product"
-              value={newLead.product}
-              onChange={(e) => setNewLead({ ...newLead, product: e.target.value })}
-            />
-            <input
-              type="number"
-              className="flex-1 min-w-[200px] p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              placeholder="Quantity"
-              value={newLead.quantity}
-              onChange={(e) => setNewLead({ ...newLead, quantity: e.target.value })}
-            />
-            <input
-              type="number"
-              step="0.01"
-              className="flex-1 min-w-[200px] p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              placeholder="Price"
-              value={newLead.price}
-              onChange={(e) => setNewLead({ ...newLead, price: e.target.value })}
-            />
-            <input
               type="email"
-              className="flex-1 min-w-[200px] p-3 border border-gray-300 rounded-lg"
+              className="p-3 border border-gray-300 rounded-lg w-full focus:outline-none focus:ring-2 focus:ring-blue-500"
               placeholder="Email"
               value={newLead.email}
               onChange={(e) => setNewLead({ ...newLead, email: e.target.value })}
               required
             />
+            <input
+              className="p-3 border border-gray-300 rounded-lg w-full focus:outline-none focus:ring-2 focus:ring-blue-500"
+              placeholder="Product"
+              value={newLead.product}
+              onChange={(e) => setNewLead({ ...newLead, product: e.target.value })}
+              required
+            />
+            <input
+              type="number"
+              className="p-3 border border-gray-300 rounded-lg w-full focus:outline-none focus:ring-2 focus:ring-blue-500"
+              placeholder="Quantity"
+              value={newLead.quantity}
+              onChange={(e) => setNewLead({ ...newLead, quantity: e.target.value })}
+              required
+            />
+            <input
+              type="number"
+              step="0.01"
+              className="p-3 border border-gray-300 rounded-lg w-full focus:outline-none focus:ring-2 focus:ring-blue-500"
+              placeholder="Price"
+              value={newLead.price}
+              onChange={(e) => setNewLead({ ...newLead, price: e.target.value })}
+              required
+            />
             <button
               type="submit"
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition duration-200"
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition duration-200 w-full sm:w-auto col-span-1 sm:col-span-2"
             >
               <i className="fas fa-save mr-2"></i>Save
             </button>
           </form>
         )}
 
-        <div className="flex gap-6 mb-6 flex-wrap">
-          <label className="flex items-center gap-2">
+        <div className="flex flex-col sm:flex-row gap-4 mb-6 flex-wrap">
+          <label className="flex items-center gap-2 flex-1">
             <span className="font-semibold text-gray-700">
               <i className="fas fa-filter mr-2 text-blue-500"></i>Filter by Stage:
             </span>
             <select
-              className="p-2 border border-gray-300 rounded-lg"
+              className="p-2 border border-gray-300 rounded-lg w-full sm:w-auto"
               value={filterStage}
               onChange={(e) => setFilterStage(e.target.value)}
             >
@@ -205,100 +253,219 @@ export default function LeadList() {
               ))}
             </select>
           </label>
-          <label className="flex items-center gap-2">
+          <label className="flex items-center gap-2 flex-1">
             <span className="font-semibold text-gray-700">
               <i className="fas fa-search mr-2 text-blue-500"></i>Search:
             </span>
             <input
-              className="p-2 border border-gray-300 rounded-lg w-64"
+              className="p-2 border border-gray-300 rounded-lg w-full sm:w-64"
               placeholder="Search by name or company"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
           </label>
+          <label className="flex items-center gap-2 flex-1">
+            <span className="font-semibold text-gray-700">
+              <i className="fas fa-sort mr-2 text-blue-500"></i>Sort by:
+            </span>
+            <select
+              className="p-2 border border-gray-300 rounded-lg w-full sm:w-auto"
+              value={sortBy}
+              onChange={(e) => handleSortChange(e.target.value)}
+            >
+              <option value="created_at">Created At</option>
+              <option value="name">Name</option>
+              <option value="followup_date">Follow-up Date</option>
+            </select>
+            <button
+              className="p-2 text-gray-700 hover:text-blue-600"
+              onClick={() => handleSortChange(sortBy)}
+            >
+              <i className={`fas fa-sort-${sortOrder === 'asc' ? 'up' : 'down'}`}></i>
+            </button>
+          </label>
         </div>
 
         <div className="overflow-x-auto">
           <table className="w-full bg-white rounded-lg overflow-hidden">
-            <thead className="bg-blue-600 text-white">
+            <thead className="bg-blue-600 text-white hidden sm:table-header-group">
               <tr>
-                <th className="p-3 text-left">Name</th>
+                <th className="p-3 text-left cursor-pointer" onClick={() => handleSortChange('name')}>
+                  Name {sortBy === 'name' && <i className={`fas fa-sort-${sortOrder === 'asc' ? 'up' : 'down'}`}></i>}
+                </th>
                 <th className="p-3 text-left">Company</th>
                 <th className="p-3 text-left">Stage</th>
                 <th className="p-3 text-left">Contact</th>
                 <th className="p-3 text-left">Email</th>
-                <th className="p-3 text-left">Follow-up</th>
+                <th className="p-3 text-left cursor-pointer" onClick={() => handleSortChange('followup_date')}>
+                  Follow-up {sortBy === 'followup_date' && <i className={`fas fa-sort-${sortOrder === 'asc' ? 'up' : 'down'}`}></i>}
+                </th>
+                <th className="p-3 text-left">Actions</th>
               </tr>
             </thead>
             <tbody>
               {filteredLeads.map((lead, idx) => (
                 <tr
                   key={lead.id}
-                  className={`${
-                    idx % 2 === 0 ? 'bg-gray-50' : 'bg-white'
-                  } hover:bg-blue-50`}
+                  className={`${idx % 2 === 0 ? 'bg-gray-50' : 'bg-white'} hover:bg-blue-50 flex flex-col sm:table-row border-b sm:border-none p-4 sm:p-0`}
                 >
-                  <td
-                    className="p-3 text-blue-600 font-medium cursor-pointer"
-                    onClick={() => {
-                      setEditingFollowup(lead.id);
-                      setFollowupDate(lead.followup_date || '');
-                    }}
-                  >
-                    <i className="fas fa-user mr-2"></i>
-                    {lead.name}
-                  </td>
-                  <td className="p-3">{lead.company}</td>
-                  <td className="p-3">
-                    <select
-                      className="p-2 border border-gray-300 rounded-lg"
-                      value={lead.newStage ?? lead.stage}
-                      onChange={(e) => handleStageChange(lead.id, e.target.value)}
+                  <td className="p-3 sm:table-cell flex items-center">
+                    <span className="font-semibold sm:hidden mr-2">Name:</span>
+                    <div
+                      className="text-blue-700 font-bold cursor-pointer flex items-center gap-2"
+                      onClick={() => {
+                        setEditingFollowupId(lead.id);
+                        setFollowupDate(lead.followup_date || '');
+                      }}
+                      title="Click to edit follow-up date"
                     >
-                      {stageOptions.map((stage) => (
-                        <option key={stage} value={stage}>
-                          {stage}
-                        </option>
-                      ))}
-                    </select>
-                    {lead.newStage && lead.newStage !== lead.stage && (
-                      <button
-                        onClick={() => handleStageConfirm(lead.id, lead.newStage)}
-                        className="ml-2 px-3 py-1 bg-blue-600 text-white rounded-lg"
-                      >
-                        <i className="fas fa-check mr-1"></i>Confirm
-                      </button>
+                      <i className="fas fa-user"></i>
+                      {lead.name}
+                      {lead.followup_date && (
+                        <i className="fas fa-calendar-check text-green-500" title="Follow-up scheduled"></i>
+                      )}
+                    </div>
+                  </td>
+                  <td className="p-3 sm:table-cell flex items-center">
+                    <span className="font-semibold sm:hidden mr-2">Company:</span>
+                    {editingLeadId === lead.id ? (
+                      <input
+                        type="text"
+                        value={editingLeadData.company}
+                        onChange={(e) =>
+                          setEditingLeadData({ ...editingLeadData, company: e.target.value })
+                        }
+                        className="p-2 border rounded w-full"
+                      />
+                    ) : (
+                      lead.company
                     )}
                   </td>
-                  <td className="p-3">{lead.contact_number}</td>
-                  <td className="p-3">{lead.email}</td>
-                  <td className="p-3">
-                    {editingFollowup === lead.id ? (
-                      <div className="flex gap-2 items-center">
-                        <input
-                          type="date"
-                          className="p-2 border border-gray-300 rounded-lg"
-                          value={followupDate}
-                          onChange={(e) => setFollowupDate(e.target.value)}
-                        />
-                        <button
-                          onClick={() => handleFollowupSave(lead.id)}
-                          className="px-3 py-1 bg-teal-500 text-white rounded-lg"
-                        >
-                          <i className="fas fa-save mr-1"></i>Save
-                        </button>
-                        <button
-                          onClick={() => {
-                            setEditingFollowup(null);
-                            setFollowupDate('');
+                  <td className="p-3 sm:table-cell flex items-center">
+                    <span className="font-semibold sm:hidden mr-2">Stage:</span>
+                    {editingLeadId === lead.id ? (
+                      <div className="flex items-center gap-2">
+                        <select
+                          value={editingLeadData.stage}
+                          onChange={(e) => {
+                            setEditingLeadData({ ...editingLeadData, stage: e.target.value });
+                            handleStageChange(lead.id, e.target.value);
                           }}
-                          className="px-3 py-1 bg-red-500 text-white rounded-lg"
+                          className="p-2 border rounded w-full sm:w-auto"
                         >
-                          <i className="fas fa-times mr-1"></i>Cancel
+                          {stageOptions.map((stage) => (
+                            <option key={stage} value={stage}>
+                              {stage}
+                            </option>
+                          ))}
+                        </select>
+                        <button
+                          onClick={() => handleStageConfirm(lead.id, editingLeadData.stage)}
+                          className="p-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600"
+                        >
+                          <i className="fas fa-check"></i>
                         </button>
                       </div>
                     ) : (
+                      lead.stage
+                    )}
+                  </td>
+                  <td className="p-3 sm:table-cell flex items-center">
+                    <span className="font-semibold sm:hidden mr-2">Contact:</span>
+                    {editingLeadId === lead.id ? (
+                      <input
+                        type="text"
+                        value={editingLeadData.contact_number}
+                        onChange={(e) =>
+                          setEditingLeadData({ ...editingLeadData, contact_number: e.target.value })
+                        }
+                        className="p-2 border rounded w-full"
+                      />
+                    ) : (
+                      lead.contact_number
+                    )}
+                  </td>
+                  <td className="p-3 sm:table-cell flex items-center">
+                    <span className="font-semibold sm:hidden mr-2">Email:</span>
+                    {editingLeadId === lead.id ? (
+                      <input
+                        type="email"
+                        value={editingLeadData.email}
+                        onChange={(e) =>
+                          setEditingLeadData({ ...editingLeadData, email: e.target.value })
+                        }
+                        className="p-2 border rounded w-full"
+                      />
+                    ) : (
+                      lead.email
+                    )}
+                  </td>
+                  <td className="p-3 sm:table-cell flex items-center">
+                    <span className="font-semibold sm:hidden mr-2">Follow-up:</span>
+                    {editingLeadId === lead.id ? (
+                      <input
+                        type="date"
+                        value={editingLeadData.followup_date || ''}
+                        onChange={(e) =>
+                          setEditingLeadData({ ...editingLeadData, followup_date: e.target.value })
+                        }
+                        className="p-2 border rounded w-full"
+                      />
+                    ) : editingFollowupId === lead.id ? (
+                      <div className="flex flex-col sm:flex-row gap-2 items-start sm:items-center w-full">
+                        <input
+                          type="date"
+                          className="p-2 border border-gray-300 rounded-lg w-full sm:w-auto"
+                          value={followupDate}
+                          onChange={(e) => setFollowupDate(e.target.value)}
+                        />
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => handleFollowupSave(lead.id)}
+                            className="px-3 py-1 bg-teal-500 text-white rounded-lg hover:bg-teal-600"
+                          >
+                            <i className="fas fa-save mr-1"></i>Save
+                          </button>
+                          <button
+                            onClick={cancelEditing}
+                            className="px-3 py-1 bg-red-500 text-white rounded-lg hover:bg-red-600"
+                          >
+                            <i className="fas fa-times mr-1"></i>Cancel
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
                       lead.followup_date || '-'
+                    )}
+                  </td>
+                  <td className="p-3 sm:table-cell flex items-center">
+                    <span className="font-semibold sm:hidden mr-2">Actions:</span>
+                    {editingLeadId === lead.id ? (
+                      <div className="flex gap-2">
+                        <button
+                          className="px-3 py-1 bg-green-500 text-white rounded-lg hover:bg-green-600"
+                          onClick={() => saveEditedLead(lead.id)}
+                        >
+                          <i className="fas fa-check"></i>
+                        </button>
+                        <button
+                          className="px-3 py-1 bg-red-500 text-white rounded-lg hover:bg-red-600"
+                          onClick={cancelEditing}
+                        >
+                          <i className="fas fa-times"></i>
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        className="text-gray-500 hover:text-blue-600"
+                        title="Edit Lead"
+                        onClick={() => {
+                          setEditingLeadId(lead.id);
+                          setEditingLeadData({ ...lead });
+                        }}
+                      >
+                        <i className="fas fa-pencil-alt"></i>
+                      </button>
                     )}
                   </td>
                 </tr>
@@ -306,6 +473,11 @@ export default function LeadList() {
             </tbody>
           </table>
         </div>
+        {filteredLeads.length === 0 && (
+          <p className="mt-6 text-gray-500 text-center">
+            <i className="fas fa-exclamation-circle mr-2"></i>No leads found.
+          </p>
+        )}
       </div>
     </div>
   );

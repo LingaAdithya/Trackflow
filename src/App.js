@@ -4,6 +4,7 @@ import OrdersPage from './pages/OrdersPage';
 import DashboardPage from './pages/DashboardPage';
 import CreateOrderPage from './components/CreateOrderPage';
 import CreateLead from './components/CreateLeads'; 
+import '@fortawesome/fontawesome-free/css/all.min.css';
 import './App.css';
 
 function App() {

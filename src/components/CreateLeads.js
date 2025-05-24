@@ -16,7 +16,6 @@ export default function CreateLead() {
     price: '',
   });
 
-
   const handleAddLead = async (e) => {
     e.preventDefault();
 
@@ -39,34 +38,33 @@ export default function CreateLead() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-100 to-blue-50 p-6 font-sans">
-      <div className="bg-white rounded-2xl p-8 shadow-lg max-w-4xl mx-auto">
-        <h2 className="text-2xl font-bold text-gray-800 mb-6 flex items-center">
-          Create New Lead
+    <div className="min-h-screen bg-gradient-to-br from-gray-100 to-blue-50 p-4 sm:p-6 font-sans">
+      <div className="bg-white rounded-2xl p-4 sm:p-8 shadow-lg max-w-4xl mx-auto">
+        <h2 className="text-xl sm:text-2xl font-bold text-gray-800 mb-6 flex items-center">
+          <i className="fas fa-users mr-2 text-blue-500"></i> Create New Lead
         </h2>
 
         <form
           onSubmit={handleAddLead}
-          className="bg-gray-100 p-6 rounded-xl mb-6 flex flex-wrap gap-4"
+          className="bg-gray-100 p-4 sm:p-6 rounded-xl mb-6 grid grid-cols-1 sm:grid-cols-2 gap-4"
         >
-          
           <input
             required
-            className="flex-1 min-w-[200px] p-3 border border-gray-300 rounded-lg"
+            className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
             placeholder="Name"
             value={newLead.name}
             onChange={(e) => setNewLead({ ...newLead, name: e.target.value })}
           />
           <input
             required
-            className="flex-1 min-w-[200px] p-3 border border-gray-300 rounded-lg"
+            className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
             placeholder="Company"
             value={newLead.company}
             onChange={(e) => setNewLead({ ...newLead, company: e.target.value })}
           />
           <input
             required
-            className="flex-1 min-w-[200px] p-3 border border-gray-300 rounded-lg"
+            className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
             placeholder="Contact Number"
             value={newLead.contact_number}
             onChange={(e) => setNewLead({ ...newLead, contact_number: e.target.value })}
@@ -74,14 +72,14 @@ export default function CreateLead() {
           <input
             type="email"
             required
-            className="flex-1 min-w-[200px] p-3 border border-gray-300 rounded-lg"
+            className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
             placeholder="Email"
             value={newLead.email}
             onChange={(e) => setNewLead({ ...newLead, email: e.target.value })}
           />
           <input
             required
-            className="flex-1 min-w-[200px] p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
             placeholder="Product"
             value={newLead.product}
             onChange={(e) => setNewLead({ ...newLead, product: e.target.value })}
@@ -89,7 +87,7 @@ export default function CreateLead() {
           <input
             type="number"
             required
-            className="flex-1 min-w-[200px] p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
             placeholder="Quantity"
             value={newLead.quantity}
             onChange={(e) => setNewLead({ ...newLead, quantity: e.target.value })}
@@ -98,15 +96,14 @@ export default function CreateLead() {
             type="number"
             step="0.01"
             required
-            className="flex-1 min-w-[200px] p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
             placeholder="Price"
             value={newLead.price}
             onChange={(e) => setNewLead({ ...newLead, price: e.target.value })}
           />
-          
           <button
             type="submit"
-            className="px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition duration-200"
+            className="w-full sm:w-auto px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition duration-200 sm:col-span-2"
           >
             <i className="fas fa-save mr-2"></i> Save Lead
           </button>
