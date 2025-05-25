@@ -23,7 +23,7 @@ export default function LeadList() {
     contact_number: '',
     email: '',
     product: '',
-    amount: '',
+    price: '',
     quantity: '',
     stage: 'New',
   });
@@ -108,8 +108,8 @@ export default function LeadList() {
     const leadToInsert = {
       ...newLead,
       stage: 'New',
-      amount: parseFloat(newLead.amount) || 0,
-      quantity: parseInt(newLead.quantity, 10) || 0,
+      price: parseFloat(newLead.price) ,
+      quantity: parseInt(newLead.quantity, 10),
     };
 
     const { data, error } = await supabase.from('leads').insert([leadToInsert]).select();
@@ -125,7 +125,7 @@ export default function LeadList() {
         contact_number: '',
         email: '',
         product: '',
-        amount: '',
+        price: '',
         quantity: '',
         stage: 'New',
       });
@@ -255,9 +255,9 @@ export default function LeadList() {
               type="number"
               step="0.01"
               className="p-3 border border-gray-300 rounded-lg w-full focus:outline-none focus:ring-2 focus:ring-blue-500"
-              placeholder="Amount"
-              value={newLead.amount}
-              onChange={(e) => setNewLead({ ...newLead, amount: e.target.value })}
+              placeholder="Price"
+              value={newLead.price}
+              onChange={(e) => setNewLead({ ...newLead, price: e.target.value })}
               required
             />
             <button

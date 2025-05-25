@@ -28,7 +28,7 @@ ChartJS.register(
 );
 
 export default function Dashboard() {
-  const [leadStats, setLeadStats] = useState({ total: 0, closed: 0 });
+  const [leadStats, setLeadStats] = useState({ total: 0, won: 0 });
   const [orderStats, setOrderStats] = useState({ total: 0, dispatched: 0 });
   const [upcomingFollowups, setUpcomingFollowups] = useState([]);
   const [leadStageDistribution, setLeadStageDistribution] = useState([]);
@@ -46,8 +46,8 @@ export default function Dashboard() {
 
   const fetchLeadStats = async () => {
     const { data: allLeads } = await supabase.from('leads').select('id');
-    const { data: closedLeads } = await supabase.from('leads').select('id').eq('stage', 'Closed');
-    setLeadStats({ total: allLeads?.length || 0, closed: closedLeads?.length || 0 });
+    const { data: wonLeads } = await supabase.from('leads').select('id').eq('stage', 'Won');
+    setLeadStats({ total: allLeads?.length || 0, won: wonLeads?.length || 0 });
   };
 
   const fetchOrderStats = async () => {
@@ -57,7 +57,7 @@ export default function Dashboard() {
   };
 
   const fetchUpcomingFollowups = async () => {
-    const today = new Date().toISOString().slice(0, 10); // yyyy-mm-dd
+    const today = new Date().toISOString().slice(0, 10);
     const { data } = await supabase
       .from('leads')
       .select('id, name, followup_date')
@@ -68,21 +68,17 @@ export default function Dashboard() {
   };
 
   const fetchLeadStageDistribution = async () => {
-    const stageOptions = ['New', 'Contacted', 'Qualified', 'Proposal Sent', 'Won', 'Lost', 'Closed'];
-    const stageCounts = [];
-    for (const stage of stageOptions) {
+    const stages = ['New', 'Contacted', 'Qualified', 'Proposal Sent', 'Won', 'Lost'];
+    const counts = [];
+    for (const stage of stages) {
       const { data } = await supabase.from('leads').select('id').eq('stage', stage);
-      stageCounts.push(data?.length || 0);
+      counts.push(data?.length || 0);
     }
-    setLeadStageDistribution(stageCounts);
+    setLeadStageDistribution(counts);
   };
 
   const fetchLeadTrendData = async () => {
-    const { data } = await supabase
-      .from('leads')
-      .select('created_at')
-      .order('created_at', { ascending: true });
-
+    const { data } = await supabase.from('leads').select('created_at').order('created_at', { ascending: true });
     if (data) {
       const monthlyCounts = {};
       data.forEach((lead) => {
@@ -91,213 +87,125 @@ export default function Dashboard() {
         monthlyCounts[monthYear] = (monthlyCounts[monthYear] || 0) + 1;
       });
 
-      const labels = Object.keys(monthlyCounts);
-      const counts = Object.values(monthlyCounts);
-      setLeadTrendData({ labels, counts });
+      setLeadTrendData({
+        labels: Object.keys(monthlyCounts),
+        counts: Object.values(monthlyCounts),
+      });
     }
   };
 
   const barData = {
-    labels: ['Leads', 'Closed Leads', 'Orders', 'Dispatched Orders'],
-    datasets: [
-      {
-        label: 'Count',
-        data: [leadStats.total, leadStats.closed, orderStats.total, orderStats.dispatched],
-        backgroundColor: [
-          'rgba(54, 162, 235, 0.7)',
-          'rgba(75, 192, 192, 0.7)',
-          'rgba(255, 206, 86, 0.7)',
-          'rgba(153, 102, 255, 0.7)',
-        ],
-        borderColor: [
-          'rgba(54, 162, 235, 1)',
-          'rgba(75, 192, 192, 1)',
-          'rgba(255, 206, 86, 1)',
-          'rgba(153, 102, 255, 1)',
-        ],
-        borderWidth: 1,
-      }
-    ]
-  };
-
-  const barOptions = {
-    responsive: true,
-    plugins: {
-      legend: {
-        position: 'top',
-      },
-      title: {
-        display: true,
-        text: 'Lead and Order Statistics',
-        font: { size: 18 }
-      },
-    },
-    scales: {
-      y: {
-        beginAtZero: true,
-        ticks: {
-          precision: 0
-        }
-      }
-    }
+    labels: ['Leads', 'Leads Won', 'Orders', 'Dispatched Orders'],
+    datasets: [{
+      label: 'Count',
+      data: [leadStats.total, leadStats.won, orderStats.total, orderStats.dispatched],
+      backgroundColor: ['#3B82F6', '#10B981', '#F59E0B', '#8B5CF6'],
+    }]
   };
 
   const pieData = {
-    labels: ['New', 'Contacted', 'Qualified', 'Proposal Sent', 'Won', 'Lost', 'Closed'],
-    datasets: [
-      {
-        label: 'Lead Stages',
-        data: leadStageDistribution,
-        backgroundColor: [
-          'rgba(255, 99, 132, 0.7)',
-          'rgba(54, 162, 235, 0.7)',
-          'rgba(255, 206, 86, 0.7)',
-          'rgba(75, 192, 192, 0.7)',
-          'rgba(153, 102, 255, 0.7)',
-          'rgba(255, 159, 64, 0.7)',
-          'rgba(201, 203, 207, 0.7)',
-        ],
-        borderColor: [
-          'rgba(255, 99, 132, 1)',
-          'rgba(54, 162, 235, 1)',
-          'rgba(255, 206, 86, 1)',
-          'rgba(75, 192, 192, 1)',
-          'rgba(153, 102, 255, 1)',
-          'rgba(255, 159, 64, 1)',
-          'rgba(201, 203, 207, 1)',
-        ],
-        borderWidth: 1,
-      }
-    ]
-  };
-
-  const pieOptions = {
-    responsive: true,
-    plugins: {
-      legend: {
-        position: 'top',
-      },
-      title: {
-        display: true,
-        text: 'Lead Stage Distribution',
-        font: { size: 18 }
-      },
-    }
+    labels: ['New', 'Contacted', 'Qualified', 'Proposal Sent', 'Won', 'Lost'],
+    datasets: [{
+      label: 'Lead Stages',
+      data: leadStageDistribution,
+      backgroundColor: ['#EF4444', '#3B82F6', '#F59E0B', '#10B981', '#8B5CF6', '#F97316'],
+    }]
   };
 
   const lineData = {
     labels: leadTrendData.labels,
-    datasets: [
-      {
-        label: 'Leads Created',
-        data: leadTrendData.counts,
-        fill: false,
-        borderColor: 'rgba(54, 162, 235, 1)',
-        tension: 0.1,
-      }
-    ]
+    datasets: [{
+      label: 'Leads Created',
+      data: leadTrendData.counts,
+      borderColor: '#3B82F6',
+      tension: 0.3,
+    }]
   };
 
-  const lineOptions = {
-    responsive: true,
+  const chartOptions = {
     plugins: {
       legend: {
-        position: 'top',
+        position: 'bottom',
+        labels: {
+          boxWidth: 12,
+          font: { size: 10 }
+        }
       },
       title: {
-        display: true,
-        text: 'Leads Created Over Time',
-        font: { size: 18 }
-      },
-    },
-    scales: {
-      y: {
-        beginAtZero: true,
-        ticks: {
-          precision: 0
-        }
+        display: false,
       }
-    }
+    },
+    responsive: true,
+    maintainAspectRatio: false
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-100 to-blue-50 p-4 sm:p-6 font-sans">
-      <div className="bg-white rounded-2xl p-4 sm:p-8 shadow-lg max-w-5xl mx-auto">
-        <h2 className="text-xl sm:text-2xl font-bold text-gray-800 flex items-center mb-6">
-          <i className="fas fa-chart-line mr-2 text-blue-500"></i> Dashboard
+    <div className="min-h-screen bg-gradient-to-br from-gray-100 to-blue-50 p-4 font-sans">
+      <div className="max-w-6xl mx-auto bg-white p-6 sm:p-8 rounded-2xl shadow-xl">
+        <h2 className="text-2xl font-bold mb-6 text-gray-800 flex items-center">
+          <i className="fas fa-chart-line text-blue-500 mr-2"></i> Dashboard
         </h2>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
-          <div className="bg-gray-50 p-4 rounded-lg shadow-sm">
-            <h4 className="text-lg font-semibold text-gray-700 mb-2">Leads</h4>
-            <p className="text-gray-600">Total: {leadStats.total}</p>
-            <p className="text-gray-600">Closed: {leadStats.closed}</p>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-8">
+          <div className="bg-blue-100 p-4 rounded-lg text-center">
+            <p className="text-sm text-gray-600">Total Leads</p>
+            <p className="text-xl font-semibold text-blue-800">{leadStats.total}</p>
           </div>
-          <div className="bg-gray-50 p-4 rounded-lg shadow-sm">
-            <h4 className="text-lg font-semibold text-gray-700 mb-2">Orders</h4>
-            <p className="text-gray-600">Total: {orderStats.total}</p>
-            <p className="text-gray-600">Dispatched: {orderStats.dispatched}</p>
+          <div className="bg-green-100 p-4 rounded-lg text-center">
+            <p className="text-sm text-gray-600">Leads Won</p>
+            <p className="text-xl font-semibold text-green-800">{leadStats.won}</p>
           </div>
-        </div>
-
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-          <div>
-            <Bar data={barData} options={barOptions} />
+          <div className="bg-yellow-100 p-4 rounded-lg text-center">
+            <p className="text-sm text-gray-600">Total Orders</p>
+            <p className="text-xl font-semibold text-yellow-800">{orderStats.total}</p>
           </div>
-          <div>
-            <Pie data={pieData} options={pieOptions} />
+          <div className="bg-purple-100 p-4 rounded-lg text-center">
+            <p className="text-sm text-gray-600">Dispatched</p>
+            <p className="text-xl font-semibold text-purple-800">{orderStats.dispatched}</p>
           </div>
         </div>
 
-        <div className="mb-6">
-          <Line data={lineData} options={lineOptions} />
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+          <div className="bg-gray-50 p-4 rounded-lg shadow h-[300px]">
+            <Bar data={barData} options={chartOptions} />
+          </div>
+          <div className="bg-gray-50 p-4 rounded-lg shadow h-[300px]">
+            <Pie data={pieData} options={chartOptions} />
+          </div>
         </div>
 
-        <div className="mb-6">
-          <h3 className="text-lg sm:text-xl font-semibold text-gray-700 flex items-center mb-4">
-            <i className="fas fa-calendar-check mr-2 text-blue-500"></i> Upcoming Follow-ups
-          </h3>
+        <div className="bg-gray-50 p-4 rounded-lg shadow h-[300px] mb-8">
+          <Line data={lineData} options={chartOptions} />
+        </div>
+
+        <div className="mb-8">
+          <h3 className="text-lg font-semibold text-gray-700 mb-3">Upcoming Follow-ups</h3>
           {upcomingFollowups.length === 0 ? (
-            <p className="text-center text-gray-500">No upcoming follow-ups</p>
+            <p className="text-gray-500 text-center">No upcoming follow-ups</p>
           ) : (
             <ul className="space-y-2">
               {upcomingFollowups.map((lead) => (
-                <li
-                  key={lead.id}
-                  className="p-3 bg-gray-50 rounded-lg flex justify-between items-center hover:bg-blue-50 transition duration-200"
-                >
-                  <span>{lead.name}</span>
-                  <span>{lead.followup_date}</span>
+                <li key={lead.id} className="bg-blue-50 px-4 py-2 rounded flex justify-between items-center">
+                  <span className="text-gray-800">{lead.name}</span>
+                  <span className="text-sm text-gray-500">{lead.followup_date}</span>
                 </li>
               ))}
             </ul>
           )}
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
-          <button
-            onClick={() => navigate('/leads')}
-            className="flex items-center justify-center px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition duration-200"
-          >
-            <i className="fas fa-users mr-2"></i> View Leads
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+          <button onClick={() => navigate('/leads')} className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">
+            View Leads
           </button>
-          <button
-            onClick={() => navigate('/orders')}
-            className="flex items-center justify-center px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition duration-200"
-          >
-            <i className="fas fa-box-open mr-2"></i> View Orders
+          <button onClick={() => navigate('/orders')} className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">
+            View Orders
           </button>
-          <button
-            onClick={() => navigate('/create-lead')}
-            className="flex items-center justify-center px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition duration-200"
-          >
-            <i className="fas fa-plus mr-2"></i> Add Lead
+          <button onClick={() => navigate('/create-lead')} className="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600">
+            Add Lead
           </button>
-          <button
-            onClick={() => navigate('/create-order')}
-            className="flex items-center justify-center px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition duration-200"
-          >
-            <i className="fas fa-plus mr-2"></i> Add Order
+          <button onClick={() => navigate('/create-order')} className="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600">
+            Add Order
           </button>
         </div>
       </div>

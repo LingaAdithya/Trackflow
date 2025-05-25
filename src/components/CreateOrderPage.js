@@ -14,23 +14,17 @@ export default function CreateOrderPage() {
   const navigate = useNavigate();
 
   const fetchEligibleLeads = async () => {
-  const { data: orderedLeads } = await supabase.from('orders').select('lead_id');
-  const usedLeadIds = orderedLeads?.map((o) => Number(o.lead_id)).filter(Boolean) ?? [];
+    const { data: orderedLeads } = await supabase.from('orders').select('lead_id');
+    const usedLeadIds = orderedLeads?.map((o) => o.lead_id) ?? [];
 
-  const { data, error } = await supabase
-    .from('leads')
-    .select('id, name')
-    .eq('stage', 'Won')
+    const { data } = await supabase
+      .from('leads')
+      .select('id, name')
+      .eq('stage', 'Won')
+      .not('id', 'in', `(${usedLeadIds.join(',') || 0})`);
 
-  if (error) {
-    console.error("Error fetching eligible leads:", error.message);
-  } else {
-    console.log("Eligible leads:", data);
-  }
-
-  setEligibleLeads(data || []);
-};
-
+    setEligibleLeads(data || []);
+  };
 
   useEffect(() => {
     fetchEligibleLeads();
